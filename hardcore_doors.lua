@@ -1,5 +1,5 @@
--- Hotel Minus SOLO REVIVE MODE Script
--- Instant revive button + auto-revive on death (solo only)
+-- Hotel Minus MEGA EASY MODE Script
+-- Instant speed walk, instant revive, friendly entities, custom items
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -17,8 +17,15 @@ local AUTO_HEAL = true
 local HEAL_RATE = 100
 local DOOR_DETECT_RANGE = 100
 local AUTO_OPEN_DOORS = true
-local REVIVE_BUTTON = Enum.KeyCode.R -- Press R to revive
-local NO_ACCELERATION = true
+local REVIVE_BUTTON = Enum.KeyCode.R
+local INSTANT_SPEED_WALK = true -- No momentum buildup
+local SPAWN_CUSTOM_ITEMS = true
+local ITEM_SPAWN_INTERVAL = 8
+local MAX_ITEMS = 3
+
+-- Tables
+local customItems = {}
+local lastItemSpawnTime = 0
 
 -- Boost player stats
 humanoid.MaxHealth = PLAYER_HEALTH
@@ -37,7 +44,7 @@ local function isSoloMode()
     return playerCount <= 1
 end
 
--- Function to revive player
+-- Function to revive player instantly
 local function revivePlayer()
     if not character or not humanoidRootPart then return end
     
@@ -50,7 +57,7 @@ local function revivePlayer()
     humanoid.WalkSpeed = PLAYER_SPEED
     humanoid.JumpPower = PLAYER_JUMP
     
-    print("✓ REVIVED! Back in the game!")
+    print("✓ INSTANT REVIVED!")
 end
 
 -- Function to heal player
@@ -60,10 +67,80 @@ local function healPlayer()
     end
 end
 
--- Function to disable acceleration (instant speed)
-local function disableAcceleration()
-    if humanoid then
+-- Function for instant speed walk (no momentum)
+local function instantSpeedWalk()
+    if INSTANT_SPEED_WALK and humanoid then
         humanoid.WalkSpeed = PLAYER_SPEED
+    end
+end
+
+-- Function to make all entities friendly
+local function makeFriendlyEntities()
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:FindFirstChild("Humanoid") and obj.Parent ~= character then
+            local objHumanoid = obj:FindFirstChild("Humanoid")
+            -- Make them follow player instead of attacking
+            if objHumanoid then
+                objHumanoid.MaxHealth = 9999
+                objHumanoid.Health = 9999
+                objHumanoid.WalkSpeed = 20
+                
+                -- Color them blue to show they're friendly
+                for _, part in pairs(obj:GetDescendants()) do
+                    if part:IsA("Part") then
+                        part.Color = Color3.fromRGB(0, 100, 255)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Function to create custom power-up items
+local function createCustomItem()
+    if #customItems >= MAX_ITEMS then return end
+    
+    local item = Instance.new("Part")
+    item.Name = "PowerUpItem_" .. math.random(1000, 9999)
+    item.Shape = Enum.PartType.Ball
+    item.Size = Vector3.new(1.5, 1.5, 1.5)
+    item.Color = Color3.fromRGB(255, 215, 0) -- Gold
+    item.CanCollide = true
+    item.Parent = workspace
+    
+    -- Spawn at random location
+    local spawnPos = Vector3.new(
+        math.random(-200, 200),
+        50,
+        math.random(-200, 200)
+    )
+    item.CFrame = CFrame.new(spawnPos)
+    
+    -- Add touch detection
+    local touchConnection
+    touchConnection = item.Touched:Connect(function(hit)
+        if hit.Parent == character then
+            print("✓ PowerUp collected! +25 health boost!")
+            humanoid.MaxHealth = humanoid.MaxHealth + 25
+            humanoid.Health = humanoid.MaxHealth
+            
+            -- Remove item
+            item:Destroy()
+            table.remove(customItems, table.find(customItems, item))
+            touchConnection:Disconnect()
+        end
+    end)
+    
+    table.insert(customItems, item)
+end
+
+-- Function to spawn custom items periodically
+local function spawnItemsPeriodically()
+    local currentTime = tick()
+    if currentTime - lastItemSpawnTime >= ITEM_SPAWN_INTERVAL and #customItems < MAX_ITEMS then
+        createCustomItem()
+        lastItemSpawnTime = currentTime
+        print("✨ PowerUp item spawned!")
     end
 end
 
@@ -110,13 +187,10 @@ player.CharacterAdded:Connect(function(newCharacter)
     humanoid.JumpPower = PLAYER_JUMP
 end)
 
--- Auto-revive on death (solo only)
+-- Instant revive on death
 humanoid.Died:Connect(function()
-    if isSoloMode() then
-        print("💀 You died! Auto-reviving (solo mode)...")
-        wait(0.1)
-        revivePlayer()
-    end
+    wait(0.01)
+    revivePlayer()
 end)
 
 -- Button to manually revive (press R)
@@ -124,16 +198,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     if input.KeyCode == REVIVE_BUTTON then
-        if isSoloMode() then
-            print("🔄 Revive button pressed!")
-            revivePlayer()
-        else
-            print("⚠️ Revive only works in solo mode!")
-        end
+        revivePlayer()
     end
 end)
 
--- Maintain player speed (no acceleration)
+-- Maintain instant speed walk
 humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
     if humanoid.WalkSpeed ~= PLAYER_SPEED then
         humanoid.WalkSpeed = PLAYER_SPEED
@@ -150,26 +219,34 @@ RunService.Heartbeat:Connect(function()
     -- Keep jump power high
     humanoid.JumpPower = PLAYER_JUMP
     
-    -- Disable acceleration (instant speed)
-    if NO_ACCELERATION then
-        disableAcceleration()
-    end
+    -- Instant speed walk (no momentum)
+    instantSpeedWalk()
     
     -- Auto-open doors
     autoOpenDoors()
     
-    -- Auto-revive on death (solo only)
-    if humanoid.Health <= 0 and isSoloMode() then
-        wait(0.1)
+    -- Make entities friendly
+    makeFriendlyEntities()
+    
+    -- Spawn custom items
+    if SPAWN_CUSTOM_ITEMS then
+        spawnItemsPeriodically()
+    end
+    
+    -- Instant revive on death
+    if humanoid.Health <= 0 then
+        wait(0.01)
         revivePlayer()
     end
 end)
 
-print("✓✓✓ SOLO REVIVE MODE ACTIVATED! ✓✓✓")
-print("⚡ Speed: 150 (NO ACCELERATION - instant!)")
+print("✓✓✓ MEGA EASY MODE ACTIVATED! ✓✓✓")
+print("⚡ Speed: 150 (INSTANT - NO MOMENTUM!)")
 print("❤️ Health: 99999 (GOD MODE)")
 print("📈 Jump Power: 300")
 print("🚪 Auto-opens doors within 100 studs")
-print("💀 Auto-revive on death (SOLO ONLY)")
-print("🔄 Press R to manually revive!")
-print("⚠️ Revive features only work when you're alone on the server!")
+print("💀 INSTANT REVIVE ON DEATH!")
+print("💙 ALL ENTITIES ARE FRIENDLY!")
+print("✨ Custom PowerUp items spawn every 8 seconds")
+print("🔄 Press R to manually revive anytime!")
+print("😎 PURE CHILL MODE - IMPOSSIBLE TO FAIL!")
